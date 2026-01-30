@@ -60,7 +60,7 @@ def create_save_validated_query_tool(knowledge: Knowledge):
         payload = {k: v for k, v in payload.items() if v is not None}
 
         try:
-            knowledge.add_content(
+            knowledge.insert(
                 name=name.strip(),
                 text_content=json.dumps(payload, ensure_ascii=False, indent=2),
                 reader=TextReader(),

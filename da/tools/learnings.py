@@ -16,8 +16,6 @@ def create_learnings_tools(knowledge: Knowledge) -> tuple:
     def search_learnings(query: str, limit: int = 5) -> str:
         """Search for relevant learnings from past interactions.
 
-        Call this BEFORE saving to check for duplicates.
-
         Args:
             query: Keywords to search for (e.g., "date parsing", "position type")
             limit: Max results
@@ -80,7 +78,7 @@ def create_learnings_tools(knowledge: Knowledge) -> tuple:
             }
             payload = {k: v for k, v in payload.items() if v is not None}
 
-            knowledge.add_content(
+            knowledge.insert(
                 name=f"learning_{title.strip().lower().replace(' ', '_')[:50]}",
                 text_content=json.dumps(payload, ensure_ascii=False, indent=2),
                 reader=TextReader(),
