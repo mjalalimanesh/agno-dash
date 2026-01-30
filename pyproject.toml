@@ -1,13 +1,14 @@
 [project]
-name = "agentos-railway"
+name = "data-agent"
 version = "1.0.0"
+description = "A self-learning data agent that provides insights, not just query results"
 requires-python = ">=3.12,<4"
 readme = "README.md"
 license-files = ["LICENSE"]
-authors = [{ name = "Agno", email = "hello@agno.com" }]
+authors = [{ name = "Your Name", email = "your@email.com" }]
 
 dependencies = [
-  # Agno
+  # Agno Framework
   "agno",
   "agno-infra",
   # API
@@ -18,14 +19,13 @@ dependencies = [
   "pgvector",
   "psycopg[binary]",
   "sqlalchemy",
-  "duckdb",
   # Tools
   "mcp",
-  "reportlab",
-  "duckduckgo-search",
   # Data loading
   "pandas",
   "requests",
+  # Configuration
+  "pydantic-settings",
   # Tracing
   "opentelemetry-api",
   "opentelemetry-sdk",
@@ -40,6 +40,7 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
+include = ["da*", "db*", "app*"]
 
 [tool.ruff]
 line-length = 120
@@ -56,7 +57,7 @@ plugins = ["pydantic.mypy"]
 exclude = [".venv*"]
 
 [[tool.mypy.overrides]]
-module = ["pgvector.*", "setuptools.*", "agno.*", "duckdb.*"]
+module = ["pgvector.*", "setuptools.*", "agno.*"]
 ignore_missing_imports = true
 
 [tool.uv.pip]

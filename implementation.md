@@ -1,306 +1,552 @@
-# Data Agent Implementation Spec
+# Data Agent: Implementation Specification
 
-**Goal**: Build an open-source data agent inspired by [OpenAI's internal data agent](https://openai.com/index/how-openai-built-its-data-agent/) that goes from question → insight in minutes.
-
-**Reference Article**: https://openai.com/index/how-openai-built-its-data-agent/
+> **Goal**: Build the best open-source data agent on the planet, inspired by [OpenAI's internal data agent](https://openai.com/index/how-openai-built-its-data-agent/).
 
 ---
 
-## Background: What OpenAI Built
+## Why This Matters
 
-OpenAI's data agent serves 3.5k internal users across 600 PB of data in 70k datasets. The key insight from their article:
+OpenAI's data agent serves 3.5k internal users across 600 PB of data in 70k datasets. Their key insight:
 
 > "Most Text-to-SQL failures are not 'model is dumb', they're 'model is missing context and tribal knowledge' issues."
 
-Their agent works because of **6 layers of context**:
-
-| Layer | Purpose | Our Implementation |
-|:------|:--------|:-------------------|
-| 1. Table Usage | Schema metadata, lineage, historical queries | `knowledge/tables/*.json` + `knowledge/queries/*.sql` |
-| 2. Human Annotations | Expert descriptions, business meaning, caveats | `data_quality_notes` + `knowledge/business/` |
-| 3. Codex Enrichment | Code-level definitions of how tables are built | Future: analyze dbt/pipeline code |
-| 4. Institutional Knowledge | Slack, Docs, Notion - company context | MCP connectors (Exa for now, Slack/Docs later) |
-| 5. Memory | Corrections, filters, user preferences | Agno's `LearningMachine` |
-| 6. Runtime Context | Live queries when context is stale | `introspect_schema` tool |
-
-Key quote from OpenAI:
-> "When the agent is given corrections or discovers nuances about certain data questions, it's able to save these learnings for next time, allowing it to constantly improve with its users."
+This repo implements their approach: **6 layers of context** that transform a simple text-to-SQL agent into a self-learning system that improves with every interaction.
 
 ---
 
-## What We're Building
+## The 6 Layers of Context
 
-Merge the best of:
-- **text_to_sql agent**: Knowledge-based SQL generation, semantic model, query patterns, evaluation
-- **pal agent**: LearningMachine (profile + memory + learned knowledge), two-tier storage, MCP research
+| Layer | Purpose | Implementation |
+|:------|:--------|:---------------|
+| **1. Table Metadata** | Schema, columns, types, relationships | `knowledge/tables/*.yaml` |
+| **2. Human Annotations** | Business meaning, caveats, gotchas | `data_quality_notes` + `knowledge/business/` |
+| **3. Query Patterns** | Validated SQL that works | `knowledge/queries/*.sql` |
+| **4. Institutional Knowledge** | Company context, docs, tribal knowledge | MCP connectors (optional) |
+| **5. Memory** | Corrections, preferences, learned patterns | Agno's `LearningMachine` |
+| **6. Runtime Context** | Live schema when KB is stale | `introspect_schema` tool |
 
-Into a **Data Agent** that:
-1. Searches knowledge before generating SQL (never guesses)
-2. Handles data quality issues automatically (type mismatches, date formats)
-3. Learns from corrections and successful queries
-4. Provides insights, not just data
-5. Supports reusable workflows for common analyses
+**The magic**: Layers 1-4 provide static context. Layer 5 enables **continuous learning** from corrections. Layer 6 provides **fallback** when everything else fails.
 
 ---
 
 ## Architecture
 
 ```
-data_agent/
-├── __init__.py                 # Package exports
-├── agent.py                    # Main agent with LearningMachine
-├── semantic_model.py           # Dynamic schema from knowledge
-├── knowledge/
-│   ├── tables/                 # Layer 1+2: Table metadata
-│   │   └── *.json              # Schema, descriptions, data_quality_notes
-│   ├── queries/                # Layer 1: Query patterns
-│   │   └── *.sql               # Validated SQL with annotations
-│   └── business/               # Layer 2: Business definitions
-│       └── metrics.json        # Metric definitions, rules, gotchas
-├── tools/
+da/                          # The Data Agent
+├── __init__.py              # Package exports
+├── __main__.py              # CLI entry point
+├── agent.py                 # Main agent definition
+├── config.py                # Configuration management
+│
+├── context/                 # The 6 Layers of Context
 │   ├── __init__.py
-│   ├── save_query.py           # Save validated queries → KB
-│   ├── analyze.py              # Result analysis (insights)
-│   └── introspect.py           # Layer 6: Runtime schema inspection
-├── workflows/                  # Reusable analysis templates
+│   ├── semantic_model.py    # Layer 1: Table metadata builder
+│   ├── business_rules.py    # Layer 2: Business definitions
+│   └── query_patterns.py    # Layer 3: SQL pattern loader
+│
+├── tools/                   # Agent tools
 │   ├── __init__.py
-│   ├── data_validation.py
-│   └── metrics_report.py
-├── evals/                      # Evaluation harness
-│   ├── __init__.py
-│   ├── test_cases.py
-│   └── run_evals.py
-├── scripts/
-│   ├── load_data.py
-│   └── load_knowledge.py
-└── README.md
+│   ├── analyze.py           # Result analysis and insights
+│   ├── save_query.py        # Save validated queries to KB
+│   └── introspect.py        # Layer 6: Runtime schema inspection
+│
+├── scripts/                 # Utility scripts
+│   ├── load_data.py         # Load dataset into database
+│   └── load_knowledge.py    # Populate knowledge base
+│
+└── evals/                   # Evaluation suite
+    ├── __init__.py
+    ├── test_cases.py        # Test definitions (18 cases)
+    └── run_evals.py         # Evaluation runner
+
+knowledge/                   # Static knowledge (top-level)
+├── tables/                  # Table metadata (JSON)
+├── queries/                 # Validated SQL patterns
+└── business/                # Business definitions
+
+datasets/                    # Sample datasets
+└── f1/                      # Formula 1 data (1950-2020)
 ```
 
 ---
 
-## Phase 1: Core Agent
+## Core Components
 
-### 1.1 Create `data_agent/agent.py`
+### 1. The Agent (`agent.py`)
 
-**Requirements:**
-- Use `OpenAIResponses(id="gpt-4.1")` as the model
-- Include `LearningMachine` with all three configs (from pal.py pattern):
-  ```python
-  learning=LearningMachine(
-      knowledge=data_agent_knowledge,
-      user_profile=UserProfileConfig(mode=LearningMode.AGENTIC),
-      user_memory=UserMemoryConfig(mode=LearningMode.AGENTIC),
-      learned_knowledge=LearnedKnowledgeConfig(mode=LearningMode.AGENTIC),
-  )
-  ```
-- Include `SQLTools(db_url=db_url)` for database access
-- Include `ReasoningTools(add_instructions=True)` for step-by-step reasoning
-- Include custom tools: `save_validated_query`, `analyze_results`, `introspect_schema`
-- Optionally include `MCPTools` for Exa research (if EXA_API_KEY is set)
-- Set `search_knowledge=True` to always search KB before responding
-- Set `add_history_to_context=True` with `num_history_runs=5`
+The heart of the system. Combines all 6 layers with Agno's LearningMachine.
 
-**System message must include:**
-1. The semantic model (table descriptions, data quality notes)
-2. Clear workflow: search KB → identify tables → check data quality → generate SQL → validate → analyze
-3. SQL rules (LIMIT 50, no SELECT *, never destructive)
-4. Self-correction instructions (investigate zero rows, type mismatches)
-5. Instruction to offer saving successful queries
-
-**Pattern to follow:** Combine `text_to_sql/agent.py` system message with `pal.py` LearningMachine setup.
-
-### 1.2 Create `data_agent/semantic_model.py`
-
-**Requirements:**
-- Load table metadata from `knowledge/tables/*.json`
-- Load business definitions from `knowledge/business/*.json`
-- Build a human-readable summary for the system prompt
-- Include data_quality_notes prominently
-
-**Pattern to follow:** Enhance `text_to_sql/semantic_model.py` to include business rules.
-
-### 1.3 Create `data_agent/tools/save_query.py`
-
-**Requirements:**
-- Accept: name, question, query, summary, tables_used, data_quality_notes, business_context
-- Validate: only SELECT/WITH queries allowed
-- Security: check for dangerous keywords
-- Store as JSON in knowledge base with `type: "validated_query"`
-
-**Pattern to follow:** Enhance `text_to_sql/tools/save_query.py`.
-
-### 1.4 Create `data_agent/tools/analyze.py`
-
-**Requirements:**
-- Accept query results, original question, SQL used, optional context
-- Provide:
-  - Key findings summary
-  - Basic statistics for numeric columns
-  - Top results as formatted table
-  - Suggested follow-up questions
-- Handle empty results with actionable suggestions
-
-**Purpose:** The agent should provide insights, not just data. This is a key differentiator from basic text-to-SQL.
-
-### 1.5 Create `data_agent/tools/introspect.py`
-
-**Requirements:**
-- List all tables if no table_name provided
-- For specific table: show columns, types, nullable, primary keys, foreign keys, indexes
-- Optionally include sample data
-- Use SQLAlchemy `inspect()` for metadata
-
-**Purpose:** Layer 6 - Runtime context when KB info is missing or stale.
-
-### 1.6 Create `data_agent/knowledge/business/metrics.json`
-
-**Requirements:**
-- Define metrics with: name, definition, table, calculation
-- Include business rules as a list
-- Include common_gotchas with: issue, tables_affected, solution
-
-**Example metrics for F1 data:**
-- Race Win, World Championship, Podium Finish, Fastest Lap, DNF, Points Finish
-
-### 1.7 Copy and organize knowledge files
-
-- Copy `text_to_sql/knowledge/*.json` → `data_agent/knowledge/tables/`
-- Copy `text_to_sql/knowledge/common_queries.sql` → `data_agent/knowledge/queries/`
-
-### 1.8 Create scripts
-
-**`data_agent/scripts/load_data.py`:**
-- Download F1 CSV files from S3
-- Load into PostgreSQL using pandas + sqlalchemy
-- Pattern: copy from `text_to_sql/scripts/load_f1_data.py`
-
-**`data_agent/scripts/load_knowledge.py`:**
-- Load all files from `knowledge/` directory into the agent's KB
-- Pattern: copy from `text_to_sql/scripts/load_knowledge.py`
-
-### 1.9 Create evaluation harness
-
-**`data_agent/evals/test_cases.py`:**
-- Define test cases as: (question, expected_values, category)
-- Categories: basic, aggregation, data_quality, complex, edge_case
-- Pattern: enhance from `text_to_sql/examples/evaluate.py`
-
-**`data_agent/evals/run_evals.py`:**
-- Run agent on each test case
-- Check if expected values appear in response
-- Report pass/fail with timing
-- Support filtering by category
-- Support verbose mode
-
----
-
-## Phase 2: Workflows
-
-### 2.1 Create `data_agent/workflows/data_validation.py`
-
-**Purpose:** Validate data quality across tables.
-
-**Steps:**
-1. Get table list (all or specified)
-2. For each table: row count, null rates, date ranges
-3. Check type consistency (position column types)
-4. Check referential integrity (driver names match across tables)
-5. Report anomalies
-
-**Implementation:** Use Agno's `Workflow` class with `RunEvent` for streaming progress.
-
-### 2.2 Create `data_agent/workflows/metrics_report.py`
-
-**Purpose:** Generate standard reports.
-
-**Report types:**
-- `season_summary`: Championships, race stats, notable records for a year
-- `driver_profile`: Career overview, year-by-year, best performances
-- `team_comparison`: Head-to-head for 2+ teams
-- `historical_trends`: Multi-year analysis
-
-**Implementation:** Use Agno's `Workflow` class. Each report type generates a structured prompt for the agent.
-
----
-
-## Phase 3: Connectors (Future)
-
-### 3.1 Slack MCP Connector
-- Access institutional knowledge from Slack channels
-- Search for metric definitions, decisions, incidents
-
-### 3.2 Google Docs Connector
-- Access documentation, runbooks
-- Search for business context
-
-### 3.3 Notion Connector
-- Access wikis, glossaries
-- Search for definitions, processes
-
----
-
-## Integration Points
-
-### Register in `app/config.yaml`
-
-Add data_agent to the agents list:
-```yaml
-agents:
-  - name: data-agent
-    module: data_agent.agent
-    attribute: data_agent
-```
-
-### Update `agents/__init__.py`
-
-Export the data_agent:
 ```python
-from data_agent import data_agent
+from agno.agent import Agent
+from agno.learn import LearningMachine, LearningMode
+from agno.tools.sql import SQLTools
+from agno.tools.reasoning import ReasoningTools
+
+data_agent = Agent(
+    id="data-agent",
+    name="Data Agent",
+    model=OpenAIResponses(id="gpt-4.1"),
+
+    # Knowledge base (Layers 1-3)
+    knowledge=data_agent_knowledge,
+    search_knowledge=True,  # CRITICAL: Always search before generating
+
+    # Learning (Layer 5)
+    learning=LearningMachine(
+        knowledge=data_agent_knowledge,
+        user_profile=UserProfileConfig(mode=LearningMode.AGENTIC),
+        user_memory=UserMemoryConfig(mode=LearningMode.AGENTIC),
+        learned_knowledge=LearnedKnowledgeConfig(mode=LearningMode.AGENTIC),
+    ),
+
+    # Tools
+    tools=[
+        SQLTools(db_url=db_url),
+        ReasoningTools(add_instructions=True),
+        analyze_results,
+        save_validated_query,
+        introspect_schema,
+    ],
+
+    # Context
+    add_datetime_to_context=True,
+    add_history_to_context=True,
+    num_history_runs=5,
+)
+```
+
+**Key behaviors:**
+1. **Search first**: Always searches KB before generating SQL
+2. **Learn from corrections**: LearningMachine captures patterns
+3. **Provide insights**: Not just data, but analysis
+4. **Self-improve**: Offers to save successful queries
+
+### 2. The Knowledge Base
+
+Uses Agno's Knowledge with PgVector for hybrid search:
+
+```python
+from agno.knowledge import Knowledge
+from agno.vectordb.pgvector import PgVector, SearchType
+
+data_agent_knowledge = Knowledge(
+    name="Data Agent Knowledge",
+    vector_db=PgVector(
+        db_url=db_url,
+        table_name="data_agent_knowledge",
+        search_type=SearchType.hybrid,  # Semantic + keyword
+        embedder=OpenAIEmbedder(id="text-embedding-3-small"),
+    ),
+    contents_db=agent_db,
+    max_results=10,
+)
+```
+
+**What gets stored:**
+- Table metadata with data quality notes
+- Validated SQL query patterns
+- Business definitions and rules
+- Learned corrections (via LearningMachine)
+
+### 3. The System Prompt
+
+The system prompt is **the secret sauce**. It must include:
+
+```markdown
+## WORKFLOW (Follow This Exactly)
+
+1. SEARCH KNOWLEDGE FIRST
+   - Look for similar questions
+   - Find validated query patterns
+   - Check data quality notes
+
+2. IDENTIFY TABLES
+   - Use semantic model
+   - Note column types carefully
+
+3. CHECK DATA QUALITY NOTES
+   - Type mismatches (TEXT vs INTEGER)
+   - Date formats
+   - NULL handling
+
+4. GENERATE SQL
+   - Follow SQL rules
+   - Handle types correctly
+
+5. VALIDATE RESULTS
+   - Zero rows → investigate
+   - Unexpected values → check types
+
+6. ANALYZE & EXPLAIN
+   - Key findings
+   - Context
+   - Follow-up suggestions
+
+7. OFFER TO SAVE
+   - Successful queries can be saved
+   - Future questions benefit
+
+## SEMANTIC MODEL
+[Auto-generated from knowledge/tables/]
+
+## DATA QUALITY NOTES (CRITICAL)
+[Auto-generated from knowledge/business/]
+```
+
+### 4. The Tools
+
+#### `analyze_results`
+
+Transforms raw data into insights:
+
+```python
+def analyze_results(
+    results: list[dict],
+    question: str,
+    sql_query: str,
+) -> AnalysisResult:
+    """
+    Returns:
+    - Key findings summary
+    - Statistics for numeric columns
+    - Formatted results table
+    - Suggested follow-up questions
+    """
+```
+
+#### `save_validated_query`
+
+Enables the learning loop:
+
+```python
+def save_validated_query(
+    name: str,
+    question: str,
+    query: str,
+    summary: str,
+    tables_used: list[str],
+    data_quality_notes: str,
+) -> str:
+    """
+    Call ONLY after:
+    1. Query executed successfully
+    2. User confirmed results are correct
+    3. User agreed to save
+    """
+```
+
+#### `introspect_schema`
+
+Layer 6 - Runtime fallback:
+
+```python
+def introspect_schema(
+    table_name: str | None = None,
+    include_sample_data: bool = False,
+) -> str:
+    """
+    When KB info is missing or stale:
+    - List all tables (if no table_name)
+    - Show columns, types, constraints
+    - Optionally include sample data
+    """
 ```
 
 ---
 
-## Testing Checklist
+## The Learning Loop
 
-### Basic Functionality
-- [ ] Agent responds to simple questions
-- [ ] Agent searches knowledge base before generating SQL
-- [ ] Agent handles data quality issues (type mismatches)
-- [ ] Agent provides analysis, not just raw data
+This is what makes the agent improve over time:
 
-### Learning Loop
-- [ ] Agent can save validated queries
-- [ ] Saved queries are retrieved for similar questions
-- [ ] LearningMachine captures corrections
-
-### Workflows
-- [ ] Data validation workflow runs
-- [ ] Metrics report workflow generates reports
-
-### Evaluation
-- [ ] All basic test cases pass
-- [ ] Aggregation test cases pass
-- [ ] Data quality test cases pass
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    User asks question                        │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│              Search Knowledge Base (Layer 1-3)               │
+│                                                              │
+│  Found similar query?  ─────Yes────▶  Adapt and execute     │
+│         │                                                    │
+│         No                                                   │
+│         ▼                                                    │
+│  Generate new SQL with context from semantic model          │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Execute query                             │
+│                                                              │
+│  Results look wrong? ─────▶ Self-correct using Layer 6      │
+│         │                                                    │
+│         OK                                                   │
+│         ▼                                                    │
+│  Analyze and present insights                               │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                "Want to save this query?"                    │
+│                                                              │
+│  Yes ──────▶  save_validated_query() ──▶ KB updated         │
+│                                           │                  │
+│                                           ▼                  │
+│                              Future questions benefit        │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                User provides correction                      │
+│                                                              │
+│  LearningMachine captures ──▶ Memory updated (Layer 5)      │
+│                                   │                          │
+│                                   ▼                          │
+│                      Similar questions improved              │
+└─────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## Key Patterns from Existing Code
+## Knowledge File Formats
 
-### From `text_to_sql/agent.py`:
-- Knowledge-based approach (search before generate)
-- Semantic model in system message
-- Data quality notes handling
-- SQL rules enforcement
+### Table Metadata (`knowledge/tables/*.yaml`)
 
-### From `pal.py`:
-- LearningMachine with all three configs
-- MCP tools integration
-- Two-tier storage (agent KB + user data)
-- Agentic learning mode
+```yaml
+table_name: race_wins
+description: Race win records from 1950-2020
 
-### From `db/`:
-- Use `db_url` from `db.url`
-- Use `get_postgres_db()` from `db.session`
+columns:
+  - name: date
+    type: text
+    description: Race date in 'DD Mon YYYY' format
+    quality_notes:
+      - "TEXT format, not DATE"
+      - "Use TO_DATE(date, 'DD Mon YYYY') for date operations"
+      - "Extract year: EXTRACT(YEAR FROM TO_DATE(date, 'DD Mon YYYY'))"
+
+  - name: name
+    type: text
+    description: Full name of winning driver
+
+  - name: name_tag
+    type: text
+    description: Driver abbreviation (HAM, VER, etc.)
+    quality_notes:
+      - "Different column name than drivers_championship.driver_tag"
+
+use_cases:
+  - Count wins by driver or team
+  - Analyze wins by circuit
+  - Track win streaks
+
+related_tables:
+  - drivers_championship
+  - race_results
+```
+
+### Business Definitions (`knowledge/business/metrics.yaml`)
+
+```yaml
+metrics:
+  - name: Race Win
+    definition: First place finish in a race
+    table: race_wins
+    calculation: COUNT(*) GROUP BY driver
+
+  - name: World Championship
+    definition: First place in season standings
+    table: drivers_championship
+    calculation: position = '1' (TEXT comparison!)
+
+business_rules:
+  - Constructors Championship started in 1958
+  - Points systems changed over years
+  - Team names vary slightly across years
+
+common_gotchas:
+  - issue: position column type mismatch
+    affected_tables: [drivers_championship, constructors_championship]
+    solution: |
+      drivers_championship.position is TEXT: use '1'
+      constructors_championship.position is INTEGER: use 1
+```
+
+### Validated Queries (`knowledge/queries/*.sql`)
+
+```sql
+-- @name: most_race_wins_by_year
+-- @question: Who won the most races in {year}?
+-- @tables: race_wins
+-- @quality_notes: Uses TO_DATE for date parsing
+
+SELECT
+    name AS driver,
+    COUNT(*) AS wins
+FROM race_wins
+WHERE EXTRACT(YEAR FROM TO_DATE(date, 'DD Mon YYYY')) = :year
+GROUP BY name
+ORDER BY wins DESC
+LIMIT 10;
+```
+
+---
+
+## Evaluation Framework
+
+### Test Case Structure
+
+```python
+@dataclass
+class TestCase:
+    question: str
+    expected_values: list[str]  # Strings that must appear in response
+    category: str               # basic, aggregation, data_quality, complex
+    difficulty: str             # easy, medium, hard
+    tags: list[str]             # For filtering
+```
+
+### Running Evals
+
+```bash
+# All tests
+python -m da.evals.run_evals
+
+# By category
+python -m da.evals.run_evals --category data_quality
+
+# By difficulty
+python -m da.evals.run_evals --difficulty hard
+
+# Show stats
+python -m da.evals.run_evals --stats
+```
+
+### Categories
+
+| Category | Tests | Purpose |
+|----------|-------|---------|
+| `basic` | Simple queries | Core functionality |
+| `aggregation` | GROUP BY, COUNT | SQL generation |
+| `data_quality` | Type handling | Data quality notes |
+| `complex` | Multi-table | Advanced SQL |
+| `edge_case` | NULLs, errors | Error handling |
+
+---
+
+## Workflows
+
+### Data Validation Workflow
+
+```python
+from agno.workflow import Workflow
+
+data_validation = Workflow(
+    name="Data Validation",
+    steps=[
+        # Step 1: Get table list
+        # Step 2: Check row counts
+        # Step 3: Check null rates
+        # Step 4: Check type consistency
+        # Step 5: Report anomalies
+    ]
+)
+```
+
+### Metrics Report Workflow
+
+```python
+report_workflow = Workflow(
+    name="Metrics Report",
+    steps=[
+        # Step 1: Gather key metrics
+        # Step 2: Compare to historical
+        # Step 3: Generate insights
+        # Step 4: Format report
+    ]
+)
+```
+
+---
+
+## Bring Your Own Data
+
+### Step 1: Create Dataset Directory
+
+```
+datasets/my_data/
+├── schema.yaml          # Table definitions
+├── data/                # CSV/Parquet files
+│   ├── users.csv
+│   └── orders.csv
+├── business.yaml        # Business rules
+└── queries/             # Validated SQL patterns
+    └── common.sql
+```
+
+### Step 2: Define Schema
+
+```yaml
+# schema.yaml
+tables:
+  - name: users
+    description: User accounts
+    columns:
+      - name: id
+        type: integer
+        primary_key: true
+      - name: email
+        type: text
+        quality_notes:
+          - "Always lowercase"
+      - name: created_at
+        type: timestamp
+```
+
+### Step 3: Load Dataset
+
+```bash
+python -m da.scripts.load_dataset my_data
+```
+
+### Step 4: Load Knowledge
+
+```bash
+python -m da.scripts.load_knowledge my_data
+```
+
+---
+
+## Configuration
+
+### Environment Variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `OPENAI_API_KEY` | Yes | - | OpenAI API key |
+| `DB_HOST` | No | `localhost` | PostgreSQL host |
+| `DB_PORT` | No | `5432` | PostgreSQL port |
+| `DB_USER` | No | `ai` | Database user |
+| `DB_PASS` | No | `ai` | Database password |
+| `DB_DATABASE` | No | `ai` | Database name |
+| `DATA_AGENT_MODEL` | No | `gpt-4.1` | Model to use |
+| `DATA_AGENT_DEBUG` | No | `false` | Enable debug logging |
+| `EXA_API_KEY` | No | - | Exa API for research |
+
+### Configuration File (`da/config.py`)
+
+```python
+from pydantic_settings import BaseSettings
+
+class DataAgentConfig(BaseSettings):
+    model: str = "gpt-4.1"
+    max_results: int = 10
+    default_limit: int = 50
+    debug: bool = False
+
+    class Config:
+        env_prefix = "DATA_AGENT_"
+```
 
 ---
 
@@ -308,17 +554,48 @@ from data_agent import data_agent
 
 The data agent is successful when:
 
-1. **Accuracy**: Passes 90%+ of evaluation test cases
+1. **Accuracy**: >90% pass rate on evaluation suite
 2. **Learning**: Demonstrates improvement on repeated similar questions
 3. **Analysis**: Provides insights beyond raw query results
-4. **Reliability**: Handles data quality edge cases without failing
-5. **Usability**: Works via CLI, API, and workflows
+4. **Reliability**: Handles data quality edge cases gracefully
+5. **Usability**: One-command setup, clear documentation
+6. **Extensibility**: Easy to add new datasets and knowledge
+
+---
+
+## Implementation Phases
+
+### Phase 1: Core Agent ✅
+- [x] Agent with LearningMachine
+- [x] Knowledge base setup
+- [x] Basic tools (SQL, analyze, introspect)
+- [x] Semantic model builder
+- [x] Test cases and evaluation runner
+
+### Phase 2: Polish (Current)
+- [ ] YAML-based knowledge files
+- [ ] Configuration management
+- [ ] Better error handling
+- [ ] Structured outputs
+- [ ] Enhanced analysis tool
+
+### Phase 3: Workflows
+- [ ] Data validation workflow
+- [ ] Metrics report workflow
+- [ ] Custom workflow builder
+
+### Phase 4: Production
+- [ ] Performance optimization
+- [ ] Caching layer
+- [ ] Rate limiting
+- [ ] Monitoring and alerting
 
 ---
 
 ## References
 
-- OpenAI Data Agent Article: https://openai.com/index/how-openai-built-its-data-agent/
-- Agno Documentation: https://docs.agno.com
-- Existing text_to_sql implementation: `text_to_sql/`
-- Existing pal implementation: `agents/pal.py`
+- [OpenAI Data Agent Article](https://openai.com/index/how-openai-built-its-data-agent/)
+- [Agno Documentation](https://docs.agno.com)
+- [Agno Knowledge](https://docs.agno.com/knowledge)
+- [Agno Memory](https://docs.agno.com/agents/memory)
+- [Agno Workflows](https://docs.agno.com/workflows)
