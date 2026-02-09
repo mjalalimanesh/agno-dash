@@ -20,13 +20,16 @@ from agno.learn import (
 from agno.models.openai import OpenAIResponses
 from agno.tools.mcp import MCPTools
 from agno.tools.reasoning import ReasoningTools
-from agno.tools.sql import SQLTools
 from agno.vectordb.pgvector import PgVector, SearchType
 
 from dash.context.business_rules import BUSINESS_CONTEXT
 from dash.context.semantic_model import SEMANTIC_MODEL_STR
-from dash.tools import create_introspect_schema_tool, create_save_validated_query_tool
-from db import db_url, get_postgres_db
+from dash.tools import (
+    create_analytics_sql_tools,
+    create_introspect_schema_tool,
+    create_save_validated_query_tool,
+)
+from db import db_url, get_analytics_descriptions, get_analytics_registry, get_postgres_db
 
 # ============================================================================
 # Database & Knowledge
@@ -59,14 +62,22 @@ dash_learnings = Knowledge(
 )
 
 # ============================================================================
+# Analytics DB registry (read-only; used by SQL and introspect tools)
+# ============================================================================
+
+analytics_registry = get_analytics_registry()
+analytics_descriptions = get_analytics_descriptions()
+
+# ============================================================================
 # Tools
 # ============================================================================
 
 save_validated_query = create_save_validated_query_tool(dash_knowledge)
-introspect_schema = create_introspect_schema_tool(db_url)
+analytics_tools = create_analytics_sql_tools(analytics_registry)
+introspect_schema = create_introspect_schema_tool(analytics_registry)
 
 base_tools: list = [
-    SQLTools(db_url=db_url),
+    *analytics_tools,
     save_validated_query,
     introspect_schema,
     MCPTools(url=f"https://mcp.exa.ai/mcp?exaApiKey={getenv('EXA_API_KEY', '')}&tools=web_search_exa"),
@@ -75,6 +86,37 @@ base_tools: list = [
 # ============================================================================
 # Instructions
 # ============================================================================
+
+
+def _build_databases_section(
+    registry: dict[str, str], descriptions: dict[str, str]
+) -> str:
+    """Build AVAILABLE DATABASES section for agent instructions."""
+    lines = ["## AVAILABLE DATABASES\n"]
+    lines.append(
+        "These are the analytics databases you can query (read-only):\n"
+    )
+    for name in sorted(registry):
+        desc = descriptions.get(name, "")
+        lines.append(f"- **{name}**" + (f": {desc}" if desc else ""))
+    lines.append("\nRules:")
+    lines.append(
+        "- These databases are read-only. Never attempt INSERT/UPDATE/DELETE"
+    )
+    lines.append("- Never mix databases in a single query (no cross-DB joins)")
+    if len(registry) > 1:
+        lines.append(
+            "- Always pass `database` to list_tables, describe_table, "
+            "run_sql_query, introspect_schema"
+        )
+        lines.append("- Choose the database based on the user's question")
+        lines.append("- If unclear, ask the user which database to use")
+    return "\n".join(lines)
+
+
+DATABASES_SECTION = _build_databases_section(
+    analytics_registry, analytics_descriptions
+)
 
 INSTRUCTIONS = f"""\
 You are Dash, a self-learning data agent that provides **insights**, not just query results.
@@ -148,6 +190,10 @@ save_learning(
 - Never SELECT * — specify columns
 - ORDER BY for top-N queries
 - No DROP, DELETE, UPDATE, INSERT
+
+---
+
+{DATABASES_SECTION}
 
 ---
 

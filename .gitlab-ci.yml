@@ -42,6 +42,7 @@ deploy:
       -e DB_USER="${DB_USER:-ai}" \
       -e DB_PASS="${DB_PASS:-ai}" \
       -e DB_DATABASE="${DB_DATABASE:-ai}" \
+      -e "ANALYTICS_DB_MAIN=${ANALYTICS_DB_MAIN:-}" \
       -e OPENAI_API_KEY="$OPENAI_API_KEY" \
       -e EXA_API_KEY="$EXA_API_KEY" \
       $IMAGE_TAG uvicorn app.main:app --host 0.0.0.0 --port 8000

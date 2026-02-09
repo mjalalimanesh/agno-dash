@@ -41,10 +41,12 @@ Add these variables in **Settings → CI/CD → Variables**:
   - `OPENAI_API_KEY` (masked, protected as appropriate)
 - Optional:
   - `EXA_API_KEY` (only if you want web research via Exa MCP)
-- Database (only needed if you want non-default credentials):
-  - `DB_USER` (default `ai`)
-  - `DB_PASS` (default `ai`)
-  - `DB_DATABASE` (default `ai`)
+- **Internal database** (Dash’s own data: knowledge, learnings, AgentOS). Only if non-default:
+  - `DB_HOST`, `DB_PORT` (default `5432`), `DB_USER` (default `ai`), `DB_PASS`, `DB_DATABASE` (default `ai`)
+- **Analytics databases** (read-only; for user SQL queries). One URL per DB:
+  - `ANALYTICS_DB_MAIN` = full SQLAlchemy URL (e.g. `postgresql+psycopg://user:pass@host:5432/dbname`)
+  - `ANALYTICS_DB_<NAME>` for more DBs; optional `ANALYTICS_DB_<NAME>_DESC` for agent prompt descriptions
+  - If no `ANALYTICS_DB_*` is set, Dash uses internal `DB_*` as a single analytics DB named `"default"` (backward compatible).
 
 Notes:
 - If you use “Protected variables”, deploy using “Protected tags” (per your GitLab policy).
@@ -93,7 +95,7 @@ docker logs --tail=200 dash-db
 
 ## 5) Optional: load sample data & knowledge (manual CI job)
 
-The pipeline includes a manual job named `seed_prod` that runs:
+The pipeline includes a manual job named `seed` that runs:
 - `python -m dash.scripts.load_data`
 - `python -m dash.scripts.load_knowledge`
 
@@ -101,19 +103,24 @@ Run this once after first deploy if you want the **sample F1 dataset** and knowl
 
 If you’re deploying Dash for a real dataset, you’ll likely skip this and instead load your own schema/knowledge.
 
-## 6) Using an external Postgres instead of the bundled container
+## 6) Two kinds of databases
 
-By default, the pipeline runs `dash-db` on the VM.
+- **Internal DB** (one): Used for knowledge vectors, learnings, and AgentOS. Dash reads and writes. Must be Postgres with pgvector. Configured via `DB_*` (or `DASH_DB_*` if you add that later).
+- **Analytics DBs** (one or more): Used only for user-facing SQL queries. Dash is **read-only** (SELECT, list_tables, describe_table, run_sql_query). Configured via `ANALYTICS_DB_<NAME>` (full URL per DB). If none are set, the internal `DB_*` is used as the single analytics DB `"default"`.
 
-If DevOps already provides Postgres:
-- Remove (or disable) the `dash-db` `docker run` block in `deploy_prod` in `.gitlab-ci.yml`.
+## 7) Using an external Postgres instead of the bundled container
+
+By default, the pipeline runs `dash-db` on the VM for the **internal** DB.
+
+If DevOps already provides Postgres for the internal DB:
+- Remove (or disable) the `dash-db` `docker run` block in `deploy` in `.gitlab-ci.yml`.
 - Set these CI/CD variables (or hardcode them in the job):
   - `DB_HOST` (hostname)
   - `DB_PORT` (usually `5432`)
   - `DB_USER`, `DB_PASS`, `DB_DATABASE`
 - Update the `dash-api` `docker run` to use `DB_HOST="$DB_HOST"` instead of `DB_HOST="dash-db"`.
 
-## 7) Rollback strategy
+## 8) Rollback strategy
 
 Deployments are tag-based, so rollback is simply deploying an older tag:
 ```bash
@@ -128,7 +135,7 @@ docker stop dash-api && docker rm dash-api
 docker run ... <registry>/<path>/dash:<older-tag> ...
 ```
 
-## 8) Troubleshooting
+## 9) Troubleshooting
 
 ### Pipeline fails at `docker login` / `docker push`
 - Confirm Container Registry is enabled.
@@ -150,7 +157,7 @@ docker run ... <registry>/<path>/dash:<older-tag> ...
 - Check logs: `docker logs --tail=200 dash-db`
 - Ensure `/opt/docker-data/dash-db` exists and is writable.
 
-## 9) Security notes
+## 10) Security notes
 
 - Treat `OPENAI_API_KEY` (and any DB credentials) as secrets: masked + protected variables.
 - Prefer running Dash behind a reverse proxy with TLS (Nginx/Traefik) rather than exposing `8000` directly to the internet.

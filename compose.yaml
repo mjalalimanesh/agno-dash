@@ -1,4 +1,5 @@
 services:
+  # Internal DB: knowledge, learnings, AgentOS (read/write). Postgres + pgvector required.
   dash-db:
     image: agnohq/pgvector:18
     container_name: dash-db
@@ -31,11 +32,13 @@ services:
       DATA_DIR: /data
       RUNTIME_ENV: dev
       AGNO_DEBUG: "True"
+      # Internal DB (knowledge, learnings, AgentOS)
       DB_HOST: dash-db
       DB_PORT: 5432
       DB_USER: ${DB_USER:-ai}
       DB_PASS: ${DB_PASS:-ai}
       DB_DATABASE: ${DB_DATABASE:-ai}
+      # Optional: analytics DB(s), read-only. Set ANALYTICS_DB_<NAME> to your own DB URL(s). If unset, internal DB is used as "default".
       WAIT_FOR_DB: "True"
       PRINT_ENV_ON_LOAD: "True"
       OPENAI_API_KEY: ${OPENAI_API_KEY}
