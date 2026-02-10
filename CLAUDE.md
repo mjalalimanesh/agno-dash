@@ -127,6 +127,7 @@ Test cases use `TestCase` dataclass with optional `golden_sql` for validation.
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `OPENAI_API_KEY` | Yes | OpenAI API key |
+| `OPENROUTER_API_KEY` | Yes | OpenRouter API key (LLM + embeddings) |
+| `DASH_MODEL` | No | Override LLM model (default: `openai/gpt-4o`) |
 | `EXA_API_KEY` | No | Exa for web research |
 | `DB_*` | No | Database config |

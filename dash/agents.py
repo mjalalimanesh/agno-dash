@@ -7,6 +7,9 @@ Test: python -m dash.agents
 
 from os import getenv
 
+OPENROUTER_API_KEY = getenv("OPENROUTER_API_KEY", "")
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+
 from agno.agent import Agent
 from agno.knowledge import Knowledge
 from agno.knowledge.embedder.openai import OpenAIEmbedder
@@ -17,7 +20,7 @@ from agno.learn import (
     UserMemoryConfig,
     UserProfileConfig,
 )
-from agno.models.openai import OpenAIResponses
+from agno.models.openrouter import OpenRouter
 from agno.tools.mcp import MCPTools
 from agno.tools.reasoning import ReasoningTools
 from agno.vectordb.pgvector import PgVector, SearchType
@@ -44,7 +47,11 @@ dash_knowledge = Knowledge(
         db_url=db_url,
         table_name="dash_knowledge",
         search_type=SearchType.hybrid,
-        embedder=OpenAIEmbedder(id="text-embedding-3-small"),
+        embedder=OpenAIEmbedder(
+            id="openai/text-embedding-3-small",
+            api_key=OPENROUTER_API_KEY,
+            base_url=OPENROUTER_BASE_URL,
+        ),
     ),
     contents_db=get_postgres_db(contents_table="dash_knowledge_contents"),
 )
@@ -56,7 +63,11 @@ dash_learnings = Knowledge(
         db_url=db_url,
         table_name="dash_learnings",
         search_type=SearchType.hybrid,
-        embedder=OpenAIEmbedder(id="text-embedding-3-small"),
+        embedder=OpenAIEmbedder(
+            id="openai/text-embedding-3-small",
+            api_key=OPENROUTER_API_KEY,
+            base_url=OPENROUTER_BASE_URL,
+        ),
     ),
     contents_db=get_postgres_db(contents_table="dash_learnings_contents"),
 )
@@ -211,7 +222,13 @@ save_learning(
 
 dash = Agent(
     name="Dash",
-    model=OpenAIResponses(id="gpt-5.2"),
+    model=OpenRouter(
+        id=getenv("DASH_MODEL", "openai/gpt-4o"),
+        default_headers={
+            "HTTP-Referer": "https://github.com/mjalalimanesh/agno-dash",
+            "X-Title": "zp-agno-dash",
+        },
+    ),
     db=agent_db,
     instructions=INSTRUCTIONS,
     # Knowledge (static)
