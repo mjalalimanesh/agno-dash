@@ -12,7 +12,7 @@ If you don’t have VM access, coordinate with DevOps to set up the runner + req
 - Outbound network access from the VM to:
   - GitLab Container Registry (to pull images)
   - OpenAI API (and optionally Exa) from inside the container
-- Inbound access to the app port (default `8000`) or an internal reverse-proxy routing to it.
+- Inbound access to the app port (default `8080`) or an internal reverse-proxy routing to it.
 
 ### GitLab Runner requirements (important)
 The deploy job executes `docker run ...` and must affect the **VM**. That means:
@@ -84,7 +84,7 @@ GitLab will run the pipeline for that tag and deploy to the VM via the VM runner
 ### Verify deployment
 From a machine that can reach the VM:
 - Swagger docs should be available at:
-  - `http://<vm-host>:8000/docs`
+  - `http://<vm-host>:8080/docs`
 
 DevOps can also verify on the VM:
 ```bash
@@ -151,7 +151,7 @@ docker run ... <registry>/<path>/dash:<older-tag> ...
 - Common causes:
   - Missing `OPENAI_API_KEY`
   - DB connectivity issues (wrong host/port/credentials)
-  - Port conflicts (something already binds `8000`)
+  - Port conflicts (something already binds `8080`)
 
 ### DB container keeps restarting
 - Check logs: `docker logs --tail=200 dash-db`
@@ -160,6 +160,6 @@ docker run ... <registry>/<path>/dash:<older-tag> ...
 ## 10) Security notes
 
 - Treat `OPENAI_API_KEY` (and any DB credentials) as secrets: masked + protected variables.
-- Prefer running Dash behind a reverse proxy with TLS (Nginx/Traefik) rather than exposing `8000` directly to the internet.
+- Prefer running Dash behind a reverse proxy with TLS (Nginx/Traefik) rather than exposing `8080` directly to the internet.
 - Restrict inbound traffic to the smallest set of source IPs possible.
 
