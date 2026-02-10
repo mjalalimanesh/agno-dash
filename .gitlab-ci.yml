@@ -32,7 +32,7 @@ deploy:
       docker run -d \
       --restart always \
       --name $CONTAINER_NAME \
-      -p 8080:8080 \
+      -p 8081:8081 \
       -v /opt/docker-data/dash:/data \
       -e DATA_DIR=/data \
       -e RUNTIME_ENV=prd \
@@ -45,7 +45,7 @@ deploy:
       -e "ANALYTICS_DB_MAIN=${ANALYTICS_DB_MAIN:-}" \
       -e OPENAI_API_KEY="$OPENAI_API_KEY" \
       -e EXA_API_KEY="$EXA_API_KEY" \
-      $IMAGE_TAG uvicorn app.main:app --host 0.0.0.0 --port 8080
+      $IMAGE_TAG uvicorn app.main:app --host 0.0.0.0 --port 8081
   tags:
     - ai-ticketing
   only:
