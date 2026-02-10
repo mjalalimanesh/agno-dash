@@ -41,7 +41,8 @@ services:
       # Optional: analytics DB(s), read-only. Set ANALYTICS_DB_<NAME> to your own DB URL(s). If unset, internal DB is used as "default".
       WAIT_FOR_DB: "True"
       PRINT_ENV_ON_LOAD: "True"
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      DASH_MODEL: ${DASH_MODEL:-openai/gpt-4o}
       EXA_API_KEY: ${EXA_API_KEY:-}
     depends_on:
       - dash-db

@@ -43,9 +43,14 @@ deploy:
       -e DB_PASS="${DB_PASS:-ai}" \
       -e DB_DATABASE="${DB_DATABASE:-ai}" \
       -e "ANALYTICS_DB_MAIN=${ANALYTICS_DB_MAIN:-}" \
-      -e OPENAI_API_KEY="$OPENAI_API_KEY" \
+      -e OPENROUTER_API_KEY="$OPENROUTER_API_KEY" \
+      -e DASH_MODEL="${DASH_MODEL:-openai/gpt-4o}" \
       -e EXA_API_KEY="$EXA_API_KEY" \
       $IMAGE_TAG uvicorn app.main:app --host 0.0.0.0 --port 8080
+    - echo "--- Waiting 15s for container to start ---"
+    - sleep 15
+    - docker ps --filter "name=$CONTAINER_NAME" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+    - docker logs --tail=80 $CONTAINER_NAME
   tags:
     - ai-ticketing
   only:
