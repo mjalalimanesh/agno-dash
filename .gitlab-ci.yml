@@ -27,8 +27,10 @@ deploy:
   script:
     - docker pull $IMAGE_TAG
     - export IMAGE_TAG=$IMAGE_TAG
+    - docker stop $CONTAINER_NAME || true
+    - docker rm $CONTAINER_NAME || true
     - mkdir -p /opt/docker-data/dash-db /opt/docker-data/dash
-    - docker compose -f compose.yaml -f compose.prod.yaml up -d --remove-orphans
+    - docker compose -p dash -f compose.yaml -f compose.prod.yaml up -d --remove-orphans
     - echo "--- Waiting 15s for containers to start ---"
     - sleep 15
     - docker ps --filter "name=dash" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
