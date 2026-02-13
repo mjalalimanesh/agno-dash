@@ -1,0 +1,28 @@
+# Production overrides – used by GitLab CI deploy job
+# Usage: docker compose -f compose.yaml -f compose.prod.yaml up -d
+services:
+  dash-db:
+    volumes:
+      - /opt/docker-data/dash-db:/var/lib/postgresql
+
+  dash-api:
+    image: ${IMAGE_TAG}
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8080
+    ports:
+      - "8080:8080"
+    volumes:
+      - /opt/docker-data/dash:/data
+    environment:
+      DATA_DIR: /data
+      RUNTIME_ENV: prd
+      AGNO_DEBUG: "False"
+      DB_HOST: dash-db
+      DB_PORT: "${DB_PORT:-5432}"
+      DB_USER: "${DB_USER:-ai}"
+      DB_PASS: "${DB_PASS:-ai}"
+      DB_DATABASE: "${DB_DATABASE:-ai}"
+      ANALYTICS_DB_MAIN: "${ANALYTICS_DB_MAIN:-}"
+      WAIT_FOR_DB: "True"
+      OPENROUTER_API_KEY: "${OPENROUTER_API_KEY}"
+      DASH_MODEL: "${DASH_MODEL:-openai/gpt-4o}"
+      EXA_API_KEY: "${EXA_API_KEY:-}"
