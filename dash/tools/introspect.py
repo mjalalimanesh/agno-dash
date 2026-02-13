@@ -26,6 +26,12 @@ def create_introspect_schema_tool(registry: dict[str, str]):
             )
 
         name = database.strip().lower()
+        if not name:
+            available = ", ".join(db_names)
+            raise ValueError(
+                "Multiple analytics databases configured. "
+                f"Pass `database`. Available: {available}"
+            )
         if name not in engines:
             available = ", ".join(db_names)
             raise ValueError(f"Unknown database '{name}'. Available: {available}")
