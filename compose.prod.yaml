@@ -1,14 +1,24 @@
-# Production overrides – used by GitLab CI deploy job
-# Usage: docker compose -f compose.yaml -f compose.prod.yaml up -d
+# Standalone production compose – used by GitLab CI deploy job
+# Usage: docker compose -p dash -f compose.prod.yaml up -d
 services:
   dash-db:
-    ports: []
+    image: agnohq/pgvector:18
+    container_name: dash-db
+    restart: unless-stopped
     volumes:
       - /opt/docker-data/dash-db:/var/lib/postgresql
+    environment:
+      POSTGRES_USER: ${DB_USER:-ai}
+      POSTGRES_PASSWORD: ${DB_PASS:-ai}
+      POSTGRES_DB: ${DB_DATABASE:-ai}
+    networks:
+      - dash
 
   dash-api:
     image: ${IMAGE_TAG}
+    container_name: dash-api
     command: uvicorn app.main:app --host 0.0.0.0 --port 8080
+    restart: unless-stopped
     ports:
       - "8080:8080"
     volumes:
@@ -27,3 +37,10 @@ services:
       OPENROUTER_API_KEY: "${OPENROUTER_API_KEY}"
       DASH_MODEL: "${DASH_MODEL:-openai/gpt-4o}"
       EXA_API_KEY: "${EXA_API_KEY:-}"
+    depends_on:
+      - dash-db
+    networks:
+      - dash
+
+networks:
+  dash:
