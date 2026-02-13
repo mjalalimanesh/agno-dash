@@ -46,6 +46,7 @@ deploy:
       -e OPENROUTER_API_KEY="$OPENROUTER_API_KEY" \
       -e DASH_MODEL="${DASH_MODEL:-openai/gpt-4o}" \
       -e EXA_API_KEY="$EXA_API_KEY" \
+      --add-host=host.docker.internal:host-gateway \
       $IMAGE_TAG uvicorn app.main:app --host 0.0.0.0 --port 8080
     - echo "--- Waiting 15s for container to start ---"
     - sleep 15
