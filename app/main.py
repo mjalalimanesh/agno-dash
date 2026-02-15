@@ -26,6 +26,8 @@ agent_os = AgentOS(
     agents=[dash, reasoning_dash],
     knowledge=[dash_knowledge],
     config=str(Path(__file__).parent / "config.yaml"),
+    # Allow the agent UI to connect from any origin (e.g. VM IP)
+    cors_allowed_origins=["*"],
 )
 
 app = agent_os.get_app()
