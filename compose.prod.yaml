@@ -11,14 +11,16 @@ services:
       POSTGRES_USER: ${DB_USER:-ai}
       POSTGRES_PASSWORD: ${DB_PASS:-ai}
       POSTGRES_DB: ${DB_DATABASE:-ai}
-    networks:
-      - dash
+    network_mode: bridge
 
   dash-api:
     image: ${IMAGE_TAG}
     container_name: dash-api
     command: uvicorn app.main:app --host 0.0.0.0 --port 8080 --root-path /vanna
     restart: unless-stopped
+    network_mode: bridge
+    links:
+      - dash-db
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
@@ -42,8 +44,3 @@ services:
       EXA_API_KEY: "${EXA_API_KEY:-}"
     depends_on:
       - dash-db
-    networks:
-      - dash
-
-networks:
-  dash:
