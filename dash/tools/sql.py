@@ -1,7 +1,11 @@
 """Read-only analytics SQL tools: thin wrappers around Agno SQLTools with database routing."""
 
+import json
+
 from agno.tools import tool
 from agno.tools.sql import SQLTools
+from agno.utils.log import log_debug, logger
+from sqlalchemy.inspection import inspect
 
 WRITE_KEYWORDS = {
     "insert",
@@ -14,6 +18,16 @@ WRITE_KEYWORDS = {
     "grant",
     "revoke",
 }
+
+# Internal / system schemas that should never be surfaced to the agent.
+_EXCLUDED_SCHEMAS = frozenset(
+    {
+        "information_schema",
+        "pg_catalog",
+        "pg_toast",
+        "pg_internal",
+    }
+)
 
 
 def create_analytics_sql_tools(registry: dict[str, str]) -> list:
@@ -42,23 +56,65 @@ def create_analytics_sql_tools(registry: dict[str, str]) -> list:
 
     @tool
     def list_tables(database: str | None = None) -> str:
-        """List all tables in an analytics database.
+        """List all tables across all schemas in an analytics database.
+
+        Returns a JSON object mapping each schema to its list of tables,
+        e.g. {"public": ["t1"], "sales": ["orders", "customers"]}.
 
         Args:
             database: Logical database name (e.g. "main", "sales").
                 Optional if only one analytics DB is configured.
         """
-        return _resolve(database).list_tables()
+        try:
+            log_debug("listing tables across all schemas")
+            engine = _resolve(database).db_engine
+            inspector = inspect(engine)
+            schemas = [
+                s for s in inspector.get_schema_names() if s not in _EXCLUDED_SCHEMAS
+            ]
+            result: dict[str, list[str]] = {}
+            for schema in schemas:
+                tables = inspector.get_table_names(schema=schema)
+                if tables:
+                    result[schema] = tables
+            log_debug(f"tables by schema: {result}")
+            return json.dumps(result)
+        except Exception as e:
+            logger.error(f"Error getting tables: {e}")
+            return f"Error getting tables: {e}"
 
     @tool
-    def describe_table(table_name: str, database: str | None = None) -> str:
+    def describe_table(
+        table_name: str,
+        database: str | None = None,
+        schema: str | None = None,
+    ) -> str:
         """Describe a table's columns and types.
 
         Args:
             table_name: Name of the table to describe.
             database: Logical database name.
+            schema: Schema the table belongs to (e.g. "dbo", "sales").
+                Optional — defaults to the database's default schema.
         """
-        return _resolve(database).describe_table(table_name)
+        try:
+            log_debug(f"Describing table: {table_name} (schema={schema})")
+            engine = _resolve(database).db_engine
+            inspector = inspect(engine)
+            columns = inspector.get_columns(table_name, schema=schema)
+            return json.dumps(
+                [
+                    {
+                        "name": col["name"],
+                        "type": str(col["type"]),
+                        "nullable": col["nullable"],
+                    }
+                    for col in columns
+                ]
+            )
+        except Exception as e:
+            logger.error(f"Error getting table schema: {e}")
+            return f"Error getting table schema: {e}"
 
     @tool
     def run_sql_query(query: str, database: str | None = None) -> str:

@@ -5,6 +5,16 @@ from agno.utils.log import logger
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.exc import DatabaseError, OperationalError
 
+# Internal / system schemas that should never be surfaced to the agent.
+_EXCLUDED_SCHEMAS = frozenset(
+    {
+        "information_schema",
+        "pg_catalog",
+        "pg_toast",
+        "pg_internal",
+    }
+)
+
 
 def create_introspect_schema_tool(registry: dict[str, str]):
     """Create introspect_schema tool with analytics database registry."""
@@ -23,14 +33,19 @@ def create_introspect_schema_tool(registry: dict[str, str]):
     @tool
     def introspect_schema(
         table_name: str | None = None,
+        schema: str | None = None,
         include_sample_data: bool = False,
         sample_limit: int = 5,
         database: str | None = None,
     ) -> str:
         """Inspect database schema at runtime.
 
+        When called without table_name, lists all tables across all schemas.
+
         Args:
             table_name: Table to inspect. If None, lists all tables.
+            schema: Schema the table belongs to (e.g. "dbo", "sales").
+                Optional — defaults to listing/inspecting the default schema.
             include_sample_data: Include sample rows.
             sample_limit: Number of sample rows.
             database: Logical database name (e.g. "main", "sales").
@@ -40,33 +55,58 @@ def create_introspect_schema_tool(registry: dict[str, str]):
             db_name, engine = _resolve(database)
             insp = inspect(engine)
 
+            # --- List tables mode ---
             if table_name is None:
-                tables = insp.get_table_names()
-                if not tables:
-                    return f"No tables found in '{db_name}'."
+                # If a specific schema is requested, only list that one
+                if schema:
+                    schemas_to_scan = [schema]
+                else:
+                    schemas_to_scan = [
+                        s
+                        for s in insp.get_schema_names()
+                        if s not in _EXCLUDED_SCHEMAS
+                    ]
 
                 lines = [f"## Tables ({db_name})", ""]
-                for t in sorted(tables):
-                    try:
-                        with engine.connect() as conn:
-                            count = conn.execute(
-                                text(f'SELECT COUNT(*) FROM "{t}"')
-                            ).scalar()
-                            lines.append(f"- **{t}** ({count:,} rows)")
-                    except (OperationalError, DatabaseError):
-                        lines.append(f"- **{t}**")
+                total_tables = 0
+                for s in sorted(schemas_to_scan):
+                    tables = insp.get_table_names(schema=s)
+                    if not tables:
+                        continue
+                    total_tables += len(tables)
+                    lines.append(f"### Schema: `{s}`")
+                    for t in sorted(tables):
+                        try:
+                            qualified = f'"{s}"."{t}"'
+                            with engine.connect() as conn:
+                                count = conn.execute(
+                                    text(f"SELECT COUNT(*) FROM {qualified}")
+                                ).scalar()
+                                lines.append(f"- **{t}** ({count:,} rows)")
+                        except (OperationalError, DatabaseError):
+                            lines.append(f"- **{t}**")
+                    lines.append("")
+
+                if total_tables == 0:
+                    return f"No tables found in '{db_name}'."
                 return "\n".join(lines)
 
-            tables = insp.get_table_names()
+            # --- Describe single table mode ---
+            # Verify table exists in the given (or default) schema
+            tables = insp.get_table_names(schema=schema)
             if table_name not in tables:
+                # Build a helpful error that lists available tables
+                available = ", ".join(sorted(tables)) if tables else "(none)"
+                schema_label = f"schema '{schema}'" if schema else "default schema"
                 return (
-                    f"Table '{table_name}' not found in '{db_name}'. "
-                    f"Available: {', '.join(sorted(tables))}"
+                    f"Table '{table_name}' not found in {schema_label} "
+                    f"of '{db_name}'. Available: {available}"
                 )
 
-            lines = [f"## {table_name} ({db_name})", ""]
+            qualified = f'"{schema}"."{table_name}"' if schema else f'"{table_name}"'
+            lines = [f"## {table_name} ({db_name}" + (f" / {schema})" if schema else ")"), ""]
 
-            cols = insp.get_columns(table_name)
+            cols = insp.get_columns(table_name, schema=schema)
             if cols:
                 lines.extend(
                     [
@@ -83,7 +123,7 @@ def create_introspect_schema_tool(registry: dict[str, str]):
                     )
                 lines.append("")
 
-            pk = insp.get_pk_constraint(table_name)
+            pk = insp.get_pk_constraint(table_name, schema=schema)
             if pk and pk.get("constrained_columns"):
                 lines.append(
                     f"**Primary Key:** {', '.join(pk['constrained_columns'])}"
@@ -96,7 +136,7 @@ def create_introspect_schema_tool(registry: dict[str, str]):
                     with engine.connect() as conn:
                         result = conn.execute(
                             text(
-                                f'SELECT * FROM "{table_name}" '
+                                f"SELECT * FROM {qualified} "
                                 f"LIMIT {sample_limit}"
                             )
                         )
