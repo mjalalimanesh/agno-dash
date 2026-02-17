@@ -4,7 +4,7 @@ Dash is a **self-learning data agent** that grounds its answers in **6 layers of
 
 Inspired by [OpenAI's in-house data agent](https://openai.com/index/inside-our-in-house-data-agent/).
 
-## Quick Start
+## Get Started
 
 ```sh
 # Clone this repo
@@ -20,7 +20,7 @@ docker exec -it dash-api python -m dash.scripts.load_data
 docker exec -it dash-api python -m dash.scripts.load_knowledge
 ```
 
-Confirm dash is running by navigation to [http://localhost:8000/docs](http://localhost:8000/docs).
+Confirm dash is running at [http://localhost:8000/docs](http://localhost:8000/docs).
 
 ## Connect to the Web UI
 
@@ -246,7 +246,7 @@ python -m dash  # CLI mode
 
 When `METABASE_URL` and `METABASE_API_KEY` are set, Dash starts `@easecloudio/mcp-metabase-server` via `npx` and exposes Metabase tools to the agent. If those vars are not set, Dash starts normally and skips Metabase MCP.
 
-## Further Reading
+## Learn More
 
 - [OpenAI's In-House Data Agent](https://openai.com/index/inside-our-in-house-data-agent/) — the inspiration
 - [Self-Improving SQL Agent](https://www.ashpreetbedi.com/articles/sql-agent) — deep dive on an earlier architecture

@@ -8,7 +8,7 @@ Dash is a self-learning data agent that delivers **insights, not just SQL result
 
 ```
 dash/
-├── agents.py             # Dash agents (dash, reasoning_dash)
+├── agent.py              # Dash agent
 ├── paths.py              # Path constants
 ├── knowledge/            # Knowledge files (tables, queries, business rules)
 │   ├── tables/           # Table metadata JSON files
@@ -44,7 +44,7 @@ db/
 ./scripts/format.sh      # Format code
 ./scripts/validate.sh    # Lint + type check
 python -m dash           # CLI mode
-python -m dash.agents    # Test mode (runs sample query)
+python -m dash.agent     # Test mode (runs sample query)
 
 # Data & Knowledge
 python -m dash.scripts.load_data       # Load F1 sample data
@@ -99,7 +99,7 @@ dash = Agent(
 | 1. Table Usage | `dash/knowledge/tables/*.json` | `dash/context/semantic_model.py` |
 | 2. Business Rules | `dash/knowledge/business/*.json` | `dash/context/business_rules.py` |
 | 3. Query Patterns | `dash/knowledge/queries/*.sql` | Loaded into knowledge base |
-| 4. Institutional Knowledge | Exa MCP + Metabase MCP | `dash/agents.py` |
+| 4. Institutional Knowledge | Exa MCP + Metabase MCP | `dash/agent.py` |
 | 5. Learnings | Learning Machine | Separate knowledge base |
 | 6. Runtime Context | `introspect_schema` | `dash/tools/introspect.py` |
 

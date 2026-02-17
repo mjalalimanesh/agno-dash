@@ -19,7 +19,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    from dash.agents import dash_knowledge
+    from dash.agent import dash_knowledge
 
     if args.recreate:
         print("Recreating knowledge base (dropping existing data)...\n")

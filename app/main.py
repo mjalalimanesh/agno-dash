@@ -1,5 +1,5 @@
 """
-Dash API
+Dash AgentOS
 ========
 
 Production deployment entry point for Dash.
@@ -13,7 +13,7 @@ from pathlib import Path
 
 from agno.os import AgentOS
 
-from dash.agents import dash, dash_knowledge, reasoning_dash
+from dash.agent import dash
 from db import get_postgres_db
 
 # ============================================================================
@@ -21,10 +21,10 @@ from db import get_postgres_db
 # ============================================================================
 agent_os = AgentOS(
     name="Dash",
+    agents=[dash],
     tracing=True,
+    scheduler=True,
     db=get_postgres_db(),
-    agents=[dash, reasoning_dash],
-    knowledge=[dash_knowledge],
     config=str(Path(__file__).parent / "config.yaml"),
     # Allow the agent UI to connect from any origin (e.g. VM IP)
     cors_allowed_origins=["*"],

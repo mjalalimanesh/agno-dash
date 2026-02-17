@@ -72,7 +72,7 @@ def run_evals(
         llm_grader: Use LLM to grade responses
         compare_results: Compare actual results against golden SQL results
     """
-    from dash.agents import dash
+    from dash.agent import dash
 
     # Filter tests
     tests = TEST_CASES

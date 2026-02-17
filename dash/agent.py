@@ -1,29 +1,20 @@
 """
-Dash Agents
-===========
+Dash - Self-learning data agent
+===============================
 
-Test: python -m dash.agents
+Test: python -m dash.agent
 """
 
 from os import getenv
 
-OPENROUTER_API_KEY = getenv("OPENROUTER_API_KEY", "")
-OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-
 from agno.agent import Agent
-from agno.knowledge import Knowledge
-from agno.knowledge.embedder.openai import OpenAIEmbedder
 from agno.learn import (
     LearnedKnowledgeConfig,
     LearningMachine,
     LearningMode,
-    UserMemoryConfig,
-    UserProfileConfig,
 )
 from agno.models.openrouter import OpenRouter
 from agno.tools.mcp import MCPTools
-from agno.tools.reasoning import ReasoningTools
-from agno.vectordb.pgvector import PgVector, SearchType
 
 from dash.context.business_rules import BUSINESS_CONTEXT
 from dash.context.semantic_model import SEMANTIC_MODEL_STR
@@ -32,44 +23,34 @@ from dash.tools import (
     create_introspect_schema_tool,
     create_save_validated_query_tool,
 )
-from db import db_url, get_analytics_descriptions, get_analytics_registry, get_postgres_db
+from db import create_knowledge, get_analytics_descriptions, get_analytics_registry, get_postgres_db
 
-# ============================================================================
-# Database & Knowledge
-# ============================================================================
+OPENROUTER_API_KEY = getenv("OPENROUTER_API_KEY", "")
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+
+# ---------------------------------------------------------------------------
+# Setup
+# ---------------------------------------------------------------------------
 
 agent_db = get_postgres_db()
 
+# Dual knowledge system
 # KNOWLEDGE: Static, curated (table schemas, validated queries, business rules)
-dash_knowledge = Knowledge(
+dash_knowledge = create_knowledge(
     name="Dash Knowledge",
-    vector_db=PgVector(
-        db_url=db_url,
-        table_name="dash_knowledge",
-        search_type=SearchType.hybrid,
-        embedder=OpenAIEmbedder(
-            id="openai/text-embedding-3-small",
-            api_key=OPENROUTER_API_KEY,
-            base_url=OPENROUTER_BASE_URL,
-        ),
-    ),
-    contents_db=get_postgres_db(contents_table="dash_knowledge_contents"),
+    table_name="dash_knowledge",
+    embedder_id="openai/text-embedding-3-small",
+    embedder_api_key=OPENROUTER_API_KEY,
+    embedder_base_url=OPENROUTER_BASE_URL,
 )
 
 # LEARNINGS: Dynamic, discovered (error patterns, gotchas, user corrections)
-dash_learnings = Knowledge(
+dash_learnings = create_knowledge(
     name="Dash Learnings",
-    vector_db=PgVector(
-        db_url=db_url,
-        table_name="dash_learnings",
-        search_type=SearchType.hybrid,
-        embedder=OpenAIEmbedder(
-            id="openai/text-embedding-3-small",
-            api_key=OPENROUTER_API_KEY,
-            base_url=OPENROUTER_BASE_URL,
-        ),
-    ),
-    contents_db=get_postgres_db(contents_table="dash_learnings_contents"),
+    table_name="dash_learnings",
+    embedder_id="openai/text-embedding-3-small",
+    embedder_api_key=OPENROUTER_API_KEY,
+    embedder_base_url=OPENROUTER_BASE_URL,
 )
 
 # ============================================================================
@@ -87,7 +68,7 @@ save_validated_query = create_save_validated_query_tool(dash_knowledge)
 analytics_tools = create_analytics_sql_tools(analytics_registry)
 introspect_schema = create_introspect_schema_tool(analytics_registry)
 
-base_tools: list = [
+dash_tools: list = [
     *analytics_tools,
     save_validated_query,
     introspect_schema,
@@ -121,7 +102,7 @@ has_api_key_auth = bool(metabase_url and metabase_api_key)
 has_user_pass_auth = bool(metabase_url and metabase_username and metabase_password)
 
 if has_api_key_auth or has_user_pass_auth:
-    base_tools.append(
+    dash_tools.append(
         MCPTools(
             command="npx -y @easecloudio/mcp-metabase-server",
             transport="stdio",
@@ -267,6 +248,7 @@ save_learning(
 # ============================================================================
 
 dash = Agent(
+    id="dash",
     name="Dash",
     model=OpenRouter(
         id=getenv("DASH_MODEL", "openai/gpt-4o"),
@@ -280,28 +262,19 @@ dash = Agent(
     # Knowledge (static)
     knowledge=dash_knowledge,
     search_knowledge=True,
-    # Learning (provides search_learnings, save_learning, user profile, user memory)
+    # Learning (provides search_learnings, save_learning)
+    enable_agentic_memory=True,
     learning=LearningMachine(
         knowledge=dash_learnings,
-        user_profile=UserProfileConfig(mode=LearningMode.AGENTIC),
-        user_memory=UserMemoryConfig(mode=LearningMode.AGENTIC),
         learned_knowledge=LearnedKnowledgeConfig(mode=LearningMode.AGENTIC),
     ),
-    tools=base_tools,
+    tools=dash_tools,
     # Context
     add_datetime_to_context=True,
     add_history_to_context=True,
     read_chat_history=True,
     num_history_runs=5,
     markdown=True,
-)
-
-# Reasoning variant - adds multi-step reasoning capabilities
-reasoning_dash = dash.deep_copy(
-    update={
-        "name": "Reasoning Dash",
-        "tools": base_tools + [ReasoningTools(add_instructions=True)],
-    }
 )
 
 if __name__ == "__main__":
