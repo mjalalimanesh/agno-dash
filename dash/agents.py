@@ -202,6 +202,9 @@ save_learning(
 - ORDER BY for top-N queries
 - No DROP, DELETE, UPDATE, INSERT
 
+## Response Notes
+- When ran queries Show All your ran SQL Queries In the End of your reponse with proper format.
+
 ---
 
 {DATABASES_SECTION}
