@@ -91,8 +91,51 @@ base_tools: list = [
     *analytics_tools,
     save_validated_query,
     introspect_schema,
-    MCPTools(url=f"https://mcp.exa.ai/mcp?exaApiKey={getenv('EXA_API_KEY', '')}&tools=web_search_exa"),
+    MCPTools(
+        url=(
+            "https://mcp.exa.ai/mcp"
+            f"?exaApiKey={getenv('EXA_API_KEY', '')}&tools=web_search_exa"
+        )
+    ),
 ]
+
+metabase_url = getenv("METABASE_URL", "").strip()
+metabase_api_key = getenv("METABASE_API_KEY", "").strip()
+metabase_username = getenv("METABASE_USERNAME", "").strip()
+metabase_password = getenv("METABASE_PASSWORD", "").strip()
+npm_config_cache = getenv("NPM_CONFIG_CACHE", "/tmp/.npm").strip()
+
+metabase_env: dict[str, str] = {}
+if metabase_url:
+    metabase_env["METABASE_URL"] = metabase_url
+if metabase_api_key:
+    metabase_env["METABASE_API_KEY"] = metabase_api_key
+if metabase_username:
+    metabase_env["METABASE_USERNAME"] = metabase_username
+if metabase_password:
+    metabase_env["METABASE_PASSWORD"] = metabase_password
+if npm_config_cache:
+    metabase_env["NPM_CONFIG_CACHE"] = npm_config_cache
+
+has_api_key_auth = bool(metabase_url and metabase_api_key)
+has_user_pass_auth = bool(metabase_url and metabase_username and metabase_password)
+
+if has_api_key_auth or has_user_pass_auth:
+    base_tools.append(
+        MCPTools(
+            command="npx -y @easecloudio/mcp-metabase-server",
+            transport="stdio",
+            env=metabase_env,
+            tool_name_prefix="metabase_",
+            timeout_seconds=60,
+        )
+    )
+else:
+    print(
+        "WARNING: Metabase MCP tool is disabled. "
+        "Set METABASE_URL with METABASE_API_KEY "
+        "(or METABASE_USERNAME + METABASE_PASSWORD)."
+    )
 
 # ============================================================================
 # Instructions

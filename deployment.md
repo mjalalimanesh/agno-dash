@@ -11,7 +11,7 @@ If you don’t have VM access, coordinate with DevOps to set up the runner + req
 - The user that the GitLab Runner runs as can run Docker commands (`docker ps`, `docker pull`, `docker run`).
 - Outbound network access from the VM to:
   - GitLab Container Registry (to pull images)
-  - OpenAI API (and optionally Exa) from inside the container
+  - OpenRouter API (and optionally Exa / Metabase) from inside the container
 - Inbound access to the app port (default `8080`) or an internal reverse-proxy routing to it.
 
 ### GitLab Runner requirements (important)
@@ -38,9 +38,11 @@ In GitLab project settings, ensure the **Container Registry** is enabled.
 ### Add CI/CD variables
 Add these variables in **Settings → CI/CD → Variables**:
 - Required:
-  - `OPENAI_API_KEY` (masked, protected as appropriate)
+  - `OPENROUTER_API_KEY` (masked, protected as appropriate)
 - Optional:
   - `EXA_API_KEY` (only if you want web research via Exa MCP)
+  - `METABASE_URL` + `METABASE_API_KEY` (enable Metabase MCP tools)
+  - `METABASE_USERNAME` + `METABASE_PASSWORD` (optional fallback auth)
 - **Internal database** (Dash’s own data: knowledge, learnings, AgentOS). Only if non-default:
   - `DB_HOST`, `DB_PORT` (default `5432`), `DB_USER` (default `ai`), `DB_PASS`, `DB_DATABASE` (default `ai`)
 - **Analytics databases** (read-only; for user SQL queries). One URL per DB:
@@ -51,6 +53,7 @@ Add these variables in **Settings → CI/CD → Variables**:
 Notes:
 - If you use “Protected variables”, deploy using “Protected tags” (per your GitLab policy).
 - Do not store secrets in the repository.
+- If Metabase vars are missing, deploy still succeeds and Metabase MCP remains disabled at runtime.
 
 ## 3) What the pipeline does
 
@@ -149,7 +152,7 @@ docker run ... <registry>/<path>/dash:<older-tag> ...
 ### `dash-api` exits immediately
 - Check logs: `docker logs --tail=200 dash-api`
 - Common causes:
-  - Missing `OPENAI_API_KEY`
+  - Missing `OPENROUTER_API_KEY`
   - DB connectivity issues (wrong host/port/credentials)
   - Port conflicts (something already binds `8080`)
 
@@ -159,7 +162,8 @@ docker run ... <registry>/<path>/dash:<older-tag> ...
 
 ## 10) Security notes
 
-- Treat `OPENAI_API_KEY` (and any DB credentials) as secrets: masked + protected variables.
+- Treat `OPENROUTER_API_KEY` (and any DB credentials) as secrets: masked + protected variables.
 - Prefer running Dash behind a reverse proxy with TLS (Nginx/Traefik) rather than exposing `8080` directly to the internet.
 - Restrict inbound traffic to the smallest set of source IPs possible.
+
 

@@ -9,7 +9,7 @@ Inspired by [OpenAI's in-house data agent](https://openai.com/index/inside-our-i
 ```sh
 # Clone this repo
 git clone https://github.com/agno-agi/dash.git && cd dash
-# Add OPENAI_API_KEY by adding to .env file or export OPENAI_API_KEY=sk-***
+# Add OPENROUTER_API_KEY by adding to .env file or export OPENROUTER_API_KEY=sk-or-v1-***
 cp example.env .env
 
 # Start the application
@@ -234,9 +234,17 @@ python -m dash  # CLI mode
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `OPENAI_API_KEY` | Yes | OpenAI API key |
+| `OPENROUTER_API_KEY` | Yes | OpenRouter API key (used for LLM + embeddings) |
 | `EXA_API_KEY` | No | Web search for external knowledge |
+| `METABASE_URL` | No | Metabase base URL; enables Metabase MCP when paired with API key |
+| `METABASE_API_KEY` | No | Metabase API key for Metabase MCP |
+| `METABASE_USERNAME` | No | Optional Metabase login fallback auth |
+| `METABASE_PASSWORD` | No | Optional Metabase login fallback auth |
 | `DB_*` | No | Database config (defaults to localhost) |
+
+### Metabase MCP (optional)
+
+When `METABASE_URL` and `METABASE_API_KEY` are set, Dash starts `@easecloudio/mcp-metabase-server` via `npx` and exposes Metabase tools to the agent. If those vars are not set, Dash starts normally and skips Metabase MCP.
 
 ## Further Reading
 

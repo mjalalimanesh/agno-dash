@@ -44,5 +44,9 @@ services:
       OPENROUTER_API_KEY: "${OPENROUTER_API_KEY}"
       DASH_MODEL: "${DASH_MODEL:-openai/gpt-4o}"
       EXA_API_KEY: "${EXA_API_KEY:-}"
+      METABASE_URL: "${METABASE_URL:-}"
+      METABASE_API_KEY: "${METABASE_API_KEY:-}"
+      METABASE_USERNAME: "${METABASE_USERNAME:-}"
+      METABASE_PASSWORD: "${METABASE_PASSWORD:-}"
     depends_on:
       - dash-db

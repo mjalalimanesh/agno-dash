@@ -99,7 +99,7 @@ dash = Agent(
 | 1. Table Usage | `dash/knowledge/tables/*.json` | `dash/context/semantic_model.py` |
 | 2. Business Rules | `dash/knowledge/business/*.json` | `dash/context/business_rules.py` |
 | 3. Query Patterns | `dash/knowledge/queries/*.sql` | Loaded into knowledge base |
-| 4. Institutional Knowledge | Exa MCP | `dash/agents.py` |
+| 4. Institutional Knowledge | Exa MCP + Metabase MCP | `dash/agents.py` |
 | 5. Learnings | Learning Machine | Separate knowledge base |
 | 6. Runtime Context | `introspect_schema` | `dash/tools/introspect.py` |
 
@@ -130,4 +130,8 @@ Test cases use `TestCase` dataclass with optional `golden_sql` for validation.
 | `OPENROUTER_API_KEY` | Yes | OpenRouter API key (LLM + embeddings) |
 | `DASH_MODEL` | No | Override LLM model (default: `openai/gpt-4o`) |
 | `EXA_API_KEY` | No | Exa for web research |
+| `METABASE_URL` | No | Metabase base URL for MCP integration |
+| `METABASE_API_KEY` | No | Metabase API key for MCP integration |
+| `METABASE_USERNAME` | No | Optional Metabase username fallback auth |
+| `METABASE_PASSWORD` | No | Optional Metabase password fallback auth |
 | `DB_*` | No | Database config |

@@ -9,6 +9,11 @@ ARG USER=app
 ARG APP_DIR=/app
 ARG DATA_DIR=/data
 
+# Required for stdio MCP servers that run through npx (Metabase MCP).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends nodejs npm \
+    && rm -rf /var/lib/apt/lists/*
+
 # Create user
 RUN groupadd -g 61000 ${USER} \
     && useradd -g 61000 -u 61000 -ms /bin/bash -d ${APP_DIR} ${USER} \
