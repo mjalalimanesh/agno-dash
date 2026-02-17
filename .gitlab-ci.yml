@@ -28,7 +28,7 @@ deploy:
     - docker pull $IMAGE_TAG
     - docker pull agnohq/pgvector:18
     - export IMAGE_TAG=$IMAGE_TAG
-    - if [ -n "$METABASE_URL" ] && [ -n "$METABASE_API_KEY" ]; then echo "Metabase MCP: enabled by CI variables"; else echo "Metabase MCP: disabled (set METABASE_URL and METABASE_API_KEY to enable)"; fi
+    - 'if [ -n "$METABASE_URL" ] && [ -n "$METABASE_API_KEY" ]; then echo "Metabase MCP: enabled by CI variables"; else echo "Metabase MCP: disabled (set METABASE_URL and METABASE_API_KEY to enable)"; fi'
     - docker stop $CONTAINER_NAME dash-db || true
     - docker rm $CONTAINER_NAME dash-db || true
     - docker compose -p dash -f compose.prod.yaml up -d --remove-orphans
