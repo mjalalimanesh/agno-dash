@@ -9,7 +9,7 @@ Inspired by [OpenAI's in-house data agent](https://openai.com/index/inside-our-i
 ```sh
 # Clone this repo
 git clone https://github.com/agno-agi/dash.git && cd dash
-# Add OPENAI_API_KEY by adding to .env file or export OPENAI_API_KEY=sk-***
+# Add OPENAI_API_KEY (preferred) or OPENROUTER_API_KEY (fallback) to .env
 cp example.env .env
 
 # Start the application
@@ -234,9 +234,13 @@ python -m dash  # CLI mode
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `OPENAI_API_KEY` | Yes | OpenAI API key |
+| `OPENAI_API_KEY` | Preferred | OpenAI API key (original behavior, highest priority) |
+| `OPENROUTER_API_KEY` | Fallback | Used only when `OPENAI_API_KEY` is not set |
+| `DASH_MODEL` | No | Model override for OpenRouter path (default: `openai/gpt-4o`) |
 | `EXA_API_KEY` | No | Web search for external knowledge |
 | `DB_*` | No | Database config (defaults to localhost) |
+
+Provider priority: Dash uses OpenAI when `OPENAI_API_KEY` is set. If it is not set and `OPENROUTER_API_KEY` is set, Dash uses OpenRouter.
 
 ## Further Reading
 
