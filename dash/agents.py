@@ -7,6 +7,12 @@ Test: python -m dash.agents
 
 from os import getenv
 
+OPENAI_API_KEY = getenv("OPENAI_API_KEY", "")
+OPENROUTER_API_KEY = getenv("OPENROUTER_API_KEY", "")
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+USE_OPENAI_PROVIDER = bool(OPENAI_API_KEY)
+USE_OPENROUTER_PROVIDER = not USE_OPENAI_PROVIDER and bool(OPENROUTER_API_KEY)
+
 from agno.agent import Agent
 from agno.knowledge import Knowledge
 from agno.knowledge.embedder.openai import OpenAIEmbedder
@@ -18,6 +24,7 @@ from agno.learn import (
     UserProfileConfig,
 )
 from agno.models.openai import OpenAIResponses
+from agno.models.openrouter import OpenRouter
 from agno.tools.mcp import MCPTools
 from agno.tools.reasoning import ReasoningTools
 from agno.tools.sql import SQLTools
@@ -32,6 +39,31 @@ from db import db_url, get_postgres_db
 # Database & Knowledge
 # ============================================================================
 
+
+def _build_embedder() -> OpenAIEmbedder:
+    """Build embedder using OpenAI first; OpenRouter only as fallback."""
+    if USE_OPENROUTER_PROVIDER:
+        return OpenAIEmbedder(
+            id="openai/text-embedding-3-small",
+            api_key=OPENROUTER_API_KEY,
+            base_url=OPENROUTER_BASE_URL,
+        )
+    return OpenAIEmbedder(id="text-embedding-3-small")
+
+
+def _build_model():
+    """Build model using OpenAI first; OpenRouter only as fallback."""
+    if USE_OPENROUTER_PROVIDER:
+        return OpenRouter(
+            id=getenv("DASH_MODEL", "openai/gpt-4o"),
+            default_headers={
+                "HTTP-Referer": "https://github.com/agno-agi/dash",
+                "X-Title": "dash",
+            },
+        )
+    return OpenAIResponses(id="gpt-5.2")
+
+
 agent_db = get_postgres_db()
 
 # KNOWLEDGE: Static, curated (table schemas, validated queries, business rules)
@@ -41,7 +73,7 @@ dash_knowledge = Knowledge(
         db_url=db_url,
         table_name="dash_knowledge",
         search_type=SearchType.hybrid,
-        embedder=OpenAIEmbedder(id="text-embedding-3-small"),
+        embedder=_build_embedder(),
     ),
     contents_db=get_postgres_db(contents_table="dash_knowledge_contents"),
 )
@@ -53,7 +85,7 @@ dash_learnings = Knowledge(
         db_url=db_url,
         table_name="dash_learnings",
         search_type=SearchType.hybrid,
-        embedder=OpenAIEmbedder(id="text-embedding-3-small"),
+        embedder=_build_embedder(),
     ),
     contents_db=get_postgres_db(contents_table="dash_learnings_contents"),
 )
@@ -165,7 +197,7 @@ save_learning(
 
 dash = Agent(
     name="Dash",
-    model=OpenAIResponses(id="gpt-5.2"),
+    model=_build_model(),
     db=agent_db,
     instructions=INSTRUCTIONS,
     # Knowledge (static)
