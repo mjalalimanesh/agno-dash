@@ -134,4 +134,8 @@ Test cases use `TestCase` dataclass with optional `golden_sql` for validation.
 | `METABASE_API_KEY` | No | Metabase API key for MCP integration |
 | `METABASE_USERNAME` | No | Optional Metabase username fallback auth |
 | `METABASE_PASSWORD` | No | Optional Metabase password fallback auth |
+| `METABASE_EMBED_SECRET` | No | Secret used to sign secure Metabase embeds |
+| `METABASE_SITE_URL` | No | Browser-facing Metabase URL (defaults to `METABASE_URL`) |
+| `METABASE_EMBED_TTL_SECONDS` | No | Signed embed TTL seconds (default 900) |
+| `METABASE_ALLOWED_QUESTION_IDS` | No | Optional comma-separated allowlist for embeddable questions |
 | `DB_*` | No | Database config |

@@ -43,6 +43,10 @@ Add these variables in **Settings → CI/CD → Variables**:
   - `EXA_API_KEY` (only if you want web research via Exa MCP)
   - `METABASE_URL` + `METABASE_API_KEY` (enable Metabase MCP tools)
   - `METABASE_USERNAME` + `METABASE_PASSWORD` (optional fallback auth)
+  - `METABASE_EMBED_SECRET` (enable secure signed chart embeds)
+  - `METABASE_SITE_URL` (browser-facing Metabase URL; defaults to `METABASE_URL`)
+  - `METABASE_EMBED_TTL_SECONDS` (optional signed embed TTL, default 900)
+  - `METABASE_ALLOWED_QUESTION_IDS` (optional comma-separated allowlist)
 - **Internal database** (Dash’s own data: knowledge, learnings, AgentOS). Only if non-default:
   - `DB_HOST`, `DB_PORT` (default `5432`), `DB_USER` (default `ai`), `DB_PASS`, `DB_DATABASE` (default `ai`)
 - **Analytics databases** (read-only; for user SQL queries). One URL per DB:

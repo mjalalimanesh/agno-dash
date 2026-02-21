@@ -270,6 +270,10 @@ python -m dash  # CLI mode
 | `METABASE_API_KEY` | No | Metabase API key for Metabase MCP |
 | `METABASE_USERNAME` | No | Optional Metabase login fallback auth |
 | `METABASE_PASSWORD` | No | Optional Metabase login fallback auth |
+| `METABASE_EMBED_SECRET` | No | Secret used to sign secure Metabase guest embeds |
+| `METABASE_SITE_URL` | No | Browser-facing Metabase base URL (defaults to `METABASE_URL`) |
+| `METABASE_EMBED_TTL_SECONDS` | No | Signed embed token TTL seconds (default 900, clamped to 60..3600) |
+| `METABASE_ALLOWED_QUESTION_IDS` | No | Optional comma-separated allowlist of question IDs that may be embedded |
 | `DASH_SKILLS_ENABLED` | No | Enable or disable loading skills (`true` by default) |
 | `DASH_SKILLS_DIR` | No | Path to skills directory (`skills` by default) |
 | `DASH_SKILLS_VALIDATE` | No | Validate skills on load (`true` by default) |
@@ -278,6 +282,11 @@ python -m dash  # CLI mode
 ### Metabase MCP (optional)
 
 When `METABASE_URL` and `METABASE_API_KEY` are set, Dash starts `@easecloudio/mcp-metabase-server` via `npx` and exposes Metabase tools to the agent. If those vars are not set, Dash starts normally and skips Metabase MCP.
+
+### Metabase Interactive Embeds (optional)
+
+For secure interactive charts in `agent-ui`, set `METABASE_EMBED_SECRET` and `METABASE_SITE_URL` (or rely on `METABASE_URL` as the fallback). Dash signs short-lived embed URLs server-side and can refresh them via API without exposing secrets to the browser.
+If your Metabase host is reachable only on VPN, embeds will render only for users connected to that VPN.
 
 ## Learn More
 

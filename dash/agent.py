@@ -21,6 +21,7 @@ from agno.tools.mcp import MCPTools
 from dash.context.business_rules import BUSINESS_CONTEXT
 from dash.context.semantic_model import SEMANTIC_MODEL_STR
 from dash.tools import (
+    create_metabase_question_embed_tool,
     create_analytics_sql_tools,
     create_introspect_schema_tool,
     create_save_validated_query_tool,
@@ -140,14 +141,18 @@ dash_tools: list = [
 ]
 
 metabase_url = getenv("METABASE_URL", "").strip()
+metabase_site_url = getenv("METABASE_SITE_URL", "").strip()
 metabase_api_key = getenv("METABASE_API_KEY", "").strip()
 metabase_username = getenv("METABASE_USERNAME", "").strip()
 metabase_password = getenv("METABASE_PASSWORD", "").strip()
+metabase_embed_secret = getenv("METABASE_EMBED_SECRET", "").strip()
 npm_config_cache = getenv("NPM_CONFIG_CACHE", "/tmp/.npm").strip()
 
 metabase_env: dict[str, str] = {}
 if metabase_url:
     metabase_env["METABASE_URL"] = metabase_url
+if metabase_site_url:
+    metabase_env["METABASE_SITE_URL"] = metabase_site_url
 if metabase_api_key:
     metabase_env["METABASE_API_KEY"] = metabase_api_key
 if metabase_username:
@@ -159,8 +164,9 @@ if npm_config_cache:
 
 has_api_key_auth = bool(metabase_url and metabase_api_key)
 has_user_pass_auth = bool(metabase_url and metabase_username and metabase_password)
+metabase_mcp_enabled = bool(has_api_key_auth or has_user_pass_auth)
 
-if has_api_key_auth or has_user_pass_auth:
+if metabase_mcp_enabled:
     dash_tools.append(
         MCPTools(
             command="npx -y @easecloudio/mcp-metabase-server",
@@ -175,6 +181,21 @@ else:
         "WARNING: Metabase MCP tool is disabled. "
         "Set METABASE_URL with METABASE_API_KEY "
         "(or METABASE_USERNAME + METABASE_PASSWORD)."
+    )
+
+has_embed_config = bool((metabase_site_url or metabase_url) and metabase_embed_secret)
+if has_embed_config and metabase_mcp_enabled:
+    dash_tools.append(create_metabase_question_embed_tool())
+elif has_embed_config and not metabase_mcp_enabled:
+    print(
+        "WARNING: Metabase embed tool is disabled because Metabase MCP is disabled. "
+        "Set METABASE_URL with METABASE_API_KEY "
+        "(or METABASE_USERNAME + METABASE_PASSWORD)."
+    )
+else:
+    print(
+        "WARNING: Metabase embed tool is disabled. "
+        "Set METABASE_EMBED_SECRET with METABASE_SITE_URL (or METABASE_URL)."
     )
 
 # ============================================================================
@@ -284,6 +305,12 @@ save_learning(
 - Never SELECT * — specify columns
 - ORDER BY for top-N queries
 - No DROP, DELETE, UPDATE, INSERT
+
+## Metabase Visualization Flow
+
+- If user asks to create or show a chart, first use `metabase_` tools to create/find the Metabase question.
+- Then call `create_metabase_question_embed` with that question id.
+- Do not print signed embed URLs in plain text. The UI renders interactive embeds from metadata.
 
 ## Response Notes
 - When ran queries Show All your ran SQL Queries In the End of your reponse with proper format.

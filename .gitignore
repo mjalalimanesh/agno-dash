@@ -2,6 +2,8 @@
 # Python
 # =========================
 __pycache__/
+**/__pycache__/
+.pycache/
 *.py[codz]
 *$py.class
 
