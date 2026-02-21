@@ -6,6 +6,7 @@ Test: python -m dash.agent
 """
 
 from os import getenv
+from pathlib import Path
 
 from agno.agent import Agent
 from agno.learn import (
@@ -14,6 +15,7 @@ from agno.learn import (
     LearningMode,
 )
 from agno.models.openrouter import OpenRouter
+from agno.skills import LocalSkills, Skills
 from agno.tools.mcp import MCPTools
 
 from dash.context.business_rules import BUSINESS_CONTEXT
@@ -28,11 +30,68 @@ from db import create_knowledge, get_analytics_descriptions, get_analytics_regis
 OPENROUTER_API_KEY = getenv("OPENROUTER_API_KEY", "")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
+
+def _env_bool(name: str, default: bool) -> bool:
+    """Parse common truthy/falsy env values with a default fallback."""
+    raw = getenv(name)
+    if raw is None or raw.strip() == "":
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def load_dash_skills() -> Skills | None:
+    """Load skills from the local skills directory, fail-open on any issue."""
+    if not _env_bool("DASH_SKILLS_ENABLED", True):
+        print("INFO: Skills are disabled via DASH_SKILLS_ENABLED.")
+        return None
+
+    skills_dir_raw = getenv("DASH_SKILLS_DIR", "skills").strip() or "skills"
+    skills_dir = Path(skills_dir_raw)
+    if not skills_dir.is_absolute():
+        repo_root = Path(__file__).resolve().parents[1]
+        skills_dir = repo_root / skills_dir
+
+    validate_skills = _env_bool("DASH_SKILLS_VALIDATE", True)
+
+    if not skills_dir.exists():
+        print(
+            f"WARNING: Skills directory not found at '{skills_dir}'. "
+            "Continuing without skills."
+        )
+        return None
+
+    try:
+        loaded_skills = Skills(
+            loaders=[
+                LocalSkills(path=str(skills_dir), validate=validate_skills),
+            ]
+        )
+        skill_names = loaded_skills.get_skill_names()
+        if not skill_names:
+            print(
+                f"WARNING: No skills discovered in '{skills_dir}'. "
+                "Continuing without skills."
+            )
+            return None
+
+        print(
+            f"INFO: Loaded {len(skill_names)} skill(s) from '{skills_dir}': "
+            f"{', '.join(skill_names)}"
+        )
+        return loaded_skills
+    except Exception as exc:
+        print(
+            f"WARNING: Failed to load skills from '{skills_dir}' "
+            f"(validate={validate_skills}): {exc}. Continuing without skills."
+        )
+        return None
+
 # ---------------------------------------------------------------------------
 # Setup
 # ---------------------------------------------------------------------------
 
 agent_db = get_postgres_db()
+dash_skills = load_dash_skills()
 
 # Dual knowledge system
 # KNOWLEDGE: Static, curated (table schemas, validated queries, business rules)
@@ -262,6 +321,8 @@ dash = Agent(
     # Knowledge (static)
     knowledge=dash_knowledge,
     search_knowledge=True,
+    # Skills (fail-open loader)
+    skills=dash_skills,
     # Learning (provides search_learnings, save_learning)
     enable_agentic_memory=True,
     learning=LearningMachine(

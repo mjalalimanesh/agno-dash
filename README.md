@@ -221,6 +221,35 @@ python -m dash.scripts.load_knowledge            # Upsert changes
 python -m dash.scripts.load_knowledge --recreate # Fresh start
 ```
 
+## Adding Skills
+
+Dash supports Agno Agent Skills loaded from a local directory (default: `skills/`).
+
+```
+skills/
+└── sql-fixer/
+    ├── SKILL.md
+    ├── scripts/
+    │   └── check_query_safety.py
+    └── references/
+        ├── f1-data-gotchas.md
+        └── dash-tools-usage.md
+```
+
+### Validate Skills Locally
+
+```sh
+python -c "from agno.skills import Skills, LocalSkills; s=Skills(loaders=[LocalSkills('skills', validate=True)]); print(s.get_skill_names())"
+```
+
+### Skills Runtime Controls
+
+- `DASH_SKILLS_ENABLED=true|false` to enable or disable skills loading.
+- `DASH_SKILLS_DIR=skills` to change the skills directory path.
+- `DASH_SKILLS_VALIDATE=true|false` to validate SKILL metadata on load.
+
+If skills cannot be loaded, Dash logs a warning and continues startup (fail-open behavior).
+
 ## Local Development
 
 ```sh
@@ -235,11 +264,15 @@ python -m dash  # CLI mode
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `OPENROUTER_API_KEY` | Yes | OpenRouter API key (used for LLM + embeddings) |
+| `DASH_MODEL` | No | Override the default LLM model (default: `openai/gpt-4o`) |
 | `EXA_API_KEY` | No | Web search for external knowledge |
 | `METABASE_URL` | No | Metabase base URL; enables Metabase MCP when paired with API key |
 | `METABASE_API_KEY` | No | Metabase API key for Metabase MCP |
 | `METABASE_USERNAME` | No | Optional Metabase login fallback auth |
 | `METABASE_PASSWORD` | No | Optional Metabase login fallback auth |
+| `DASH_SKILLS_ENABLED` | No | Enable or disable loading skills (`true` by default) |
+| `DASH_SKILLS_DIR` | No | Path to skills directory (`skills` by default) |
+| `DASH_SKILLS_VALIDATE` | No | Validate skills on load (`true` by default) |
 | `DB_*` | No | Database config (defaults to localhost) |
 
 ### Metabase MCP (optional)
