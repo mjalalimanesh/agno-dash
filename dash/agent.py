@@ -308,8 +308,8 @@ save_learning(
 
 ## Metabase Visualization Flow
 
-- If user asks to create or show a chart, first use `metabase_` tools to create/find the Metabase question.
-- Then call `create_metabase_question_embed` with that question id.
+- If user asks to create or show a chart, first use `metabase_` mcp tools to create/find the Metabase question.
+- Then call `create_metabase_question_embed` tool with that question id to show the chart.
 - Do not print signed embed URLs in plain text. The UI renders interactive embeds from metadata.
 
 ## Response Notes
